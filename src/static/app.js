@@ -20,11 +20,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
+        // Build participants list markup (with remove button)
+        const participantsList = details.participants.length > 0
+          ? `<ul class="participants-list">${details.participants.map(p => `
+              <li>
+                <span class="participant-email">${p}</span>
+                <button class="remove-participant" data-activity="${name}" data-email="${p}" title="Remove">✖</button>
+              </li>
+            `).join("")}</ul>`
+          : "<p class='no-participants'>No participants yet</p>";
+
         activityCard.innerHTML = `
           <h4>${name}</h4>
           <p>${details.description}</p>
           <p><strong>Schedule:</strong> ${details.schedule}</p>
           <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <div class="participants-section">
+            <strong>Current Participants:</strong>
+            ${participantsList}
+          </div>
         `;
 
         activitiesList.appendChild(activityCard);
@@ -34,6 +48,28 @@ document.addEventListener("DOMContentLoaded", () => {
         option.value = name;
         option.textContent = name;
         activitySelect.appendChild(option);
+      });
+
+      // listen for remove button clicks via event delegation
+      activitiesList.addEventListener("click", async (evt) => {
+        if (evt.target.matches(".remove-participant")) {
+          const activity = evt.target.dataset.activity;
+          const email = evt.target.dataset.email;
+          try {
+            const resp = await fetch(
+              `/activities/${encodeURIComponent(activity)}/participants?email=${encodeURIComponent(email)}`,
+              { method: "DELETE" }
+            );
+            if (resp.ok) {
+              fetchActivities(); // refresh list
+            } else {
+              const err = await resp.json();
+              alert(err.detail || "Failed to remove participant");
+            }
+          } catch (e) {
+            console.error("Error removing participant:", e);
+          }
+        }
       });
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
@@ -62,6 +98,8 @@ document.addEventListener("DOMContentLoaded", () => {
         messageDiv.textContent = result.message;
         messageDiv.className = "success";
         signupForm.reset();
+        // refresh activity list to reflect new participant
+        fetchActivities();
       } else {
         messageDiv.textContent = result.detail || "An error occurred";
         messageDiv.className = "error";
